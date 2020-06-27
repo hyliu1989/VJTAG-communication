@@ -1,0 +1,75 @@
+# depslib dependency file v1.0
+1345629776 source:d:\iams\de-nano\pccommunicatetest\test05-vc6_led\vc6\extracting\main.cpp
+	<iostream>
+	<stdlib.h>
+	<stdio.h>
+	"ftd2xx.h"
+
+1345629593 d:\iams\de-nano\pccommunicatetest\test05-vc6_led\vc6\extracting\ftd2xx.h
+	<stdarg.h>
+	"windef.h"
+	"winbase.h"
+
+1345631469 source:d:\iams\de-nano\pccommunicatetest\test05-vc6_led\vc6\extracting\main.c
+	<stdlib.h>
+	<stdio.h>
+	"ftd2xx.h"
+
+1345644566 source:d:\iams\de-nano\pccommunicatetest\test05-vc6_led\vc6\extracting\src\main.cpp
+	<stdlib.h>
+	<stdio.h>
+	"ftd2xx.h"
+
+1345629593 d:\iams\de-nano\pccommunicatetest\test05-vc6_led\vc6\extracting\src\ftd2xx.h
+	<stdarg.h>
+	"windef.h"
+	"winbase.h"
+
+1345984399 source:d:\iams\nano_usb_blaster_tranfer\codeblocks_proj\src\main.cpp
+	<stdlib.h>
+	<stdio.h>
+	"ftd2xx.h"
+
+1345629593 d:\iams\nano_usb_blaster_tranfer\codeblocks_proj\src\ftd2xx.h
+	<stdarg.h>
+	"windef.h"
+	"winbase.h"
+
+1345999950 source:d:\iams\nano_usb_blaster_transfer_test\codeblocks_proj\src\main.cpp
+	<stdlib.h>
+	<stdio.h>
+	"ftd2xx.h"
+
+1345629593 d:\iams\nano_usb_blaster_transfer_test\codeblocks_proj\src\ftd2xx.h
+	<stdarg.h>
+	"windef.h"
+	"winbase.h"
+
+1346436215 source:d:\dropbox\fpga\usbblaster_vjtag_comm_de0nano\singlevjtag\codeblocks_proj_io\src\main.cpp
+	<stdlib.h>
+	<stdio.h>
+	"ftd2xx.h"
+
+1345629593 d:\dropbox\fpga\usbblaster_vjtag_comm_de0nano\singlevjtag\codeblocks_proj_io\src\ftd2xx.h
+	<stdarg.h>
+	"windef.h"
+	"winbase.h"
+
+1593210406 source:d:\dropbox\lifeboston\research\nanofpga_usbblaster_vjtag_comm_de0nano\1_simplevjtag\codeblocks_proj_io\src\main.cpp
+	<stdlib.h>
+	<stdio.h>
+	"ftd2xx.h"
+
+1505853986 d:\dropbox\lifeboston\research\nanofpga_usbblaster_vjtag_comm_de0nano\1_simplevjtag\codeblocks_proj_io\src\ftd2xx.h
+	<windows.h>
+	"WinTypes.h"
+
+1593319999 source:d:\dropbox\lifeboston\research\de0_nano_vjtag_communication\cpp_project\src\main.cpp
+	<stdlib.h>
+	<stdio.h>
+	"ftd2xx.h"
+
+1593319999 d:\dropbox\lifeboston\research\de0_nano_vjtag_communication\cpp_project\src\ftd2xx.h
+	<windows.h>
+	"WinTypes.h"
+

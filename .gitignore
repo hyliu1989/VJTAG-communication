@@ -1,0 +1,14 @@
+cpp_project/bin
+cpp_project/obj
+cpp_project/*.layout
+quartus_project/*.rpt
+quartus_project/*.smsg
+quartus_project/*.summary
+quartus_project/*.jdi
+quartus_project/*.pin
+quartus_project/*.rpt
+quartus_project/*.sof
+quartus_project/*.done
+quartus_project/*.qws
+quartus_project/db
+quartus_project/incremental_db
