@@ -105,7 +105,7 @@ void atomic_state_trans_SR_to_SR( BYTE *buf, int &cnt, BYTE bit_to_shift_in, boo
         }
         else{
             buf[cnt++] = RDM100;
-            buf[cnt++] = RDM100 | TCK ;
+            buf[cnt++] = RDM000 | TCK ;
         }
         
     }
@@ -116,7 +116,7 @@ void atomic_state_trans_SR_to_SR( BYTE *buf, int &cnt, BYTE bit_to_shift_in, boo
         }
         else{
             buf[cnt++] = RDM110;
-            buf[cnt++] = RDM110 | TCK ;
+            buf[cnt++] = RDM010 | TCK ;
         }
     }
 }
