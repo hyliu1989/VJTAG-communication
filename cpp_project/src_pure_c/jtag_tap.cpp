@@ -39,15 +39,15 @@ Ref: https://forum.sparkfun.com/viewtopic.php?t=20181&start=15
 #define SHIFT 0x80
 
 // Convenient byte constants for all combinations of TMS(M), TDI(D) and READ(R)
-//                              | READ | TDI | TMS
-static const BYTE RDM000 = BASE                    ;
-static const BYTE RDM001 = BASE              | TMS ;
-static const BYTE RDM010 = BASE        | TDI       ;
-static const BYTE RDM011 = BASE        | TDI | TMS ;
-static const BYTE RDM100 = BASE | READ             ;
-static const BYTE RDM101 = BASE | READ       | TMS ;
-static const BYTE RDM110 = BASE | READ | TDI       ;
-static const BYTE RDM111 = BASE | READ | TDI | TMS ;
+//                               | READ | TDI | TMS
+static const BYTE RDM000 =  BASE                    ;
+static const BYTE RDM001 =  BASE              | TMS ;
+static const BYTE RDM010 =  BASE        | TDI       ;
+//static const BYTE RDM011= BASE        | TDI | TMS ;
+static const BYTE RDM100 =  BASE | READ             ;
+//static const BYTE RDM101= BASE | READ       | TMS ;
+static const BYTE RDM110 =  BASE | READ | TDI       ;
+//static const BYTE RDM111= BASE | READ | TDI | TMS ;
 
 
 static void append_TMS0_no_data( BYTE *buf, int &cnt)
@@ -69,34 +69,34 @@ static void append_TMS1_no_data( BYTE *buf, int &cnt)
 }
 
 // IDLE and Reset related
-void atomic_state_trans_IDL_to_IDL( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); } // change state from [Run_Test/Idle] to [Run_Test/Idle]
-void atomic_state_trans_RST_to_RST( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); } // change state from [Test_Logic/Reset] to [Test_Logic/Reset]
-void atomic_state_trans_RST_to_IDL( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); } // change state from [Test_Logic/Reset] to [Run_Test/Idle]
-void atomic_state_trans_SIS_to_RST( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); } // change state from [Select_IR_Scan] to [Test_Logic/Reset]
+void atomic_state_trans_IDL_to_IDL( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); }  // [Idle] to [Idle]
+void atomic_state_trans_RST_to_RST( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); }  // [Reset] to [Reset]
+void atomic_state_trans_RST_to_IDL( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); }  // [Reset] to [Idle]
+void atomic_state_trans_SIS_to_RST( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); }  // [Select_IR_Scan] to [Reset]
 
 // Go to the DR scan and DR flow
-void atomic_state_trans_IDL_to_SDS( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); } // change state from [Run_Test/Idle] to [Select_DR_Scan]
-void atomic_state_trans_SDS_to_CAP( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); } // change state from [Select_DR_Scan] to [Capture_DR]
-void atomic_state_trans_CAP_to_SDR( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); } // change state from [Capture_DR] to [Shift_DR]
-void atomic_state_trans_CAP_to_EX1( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); } // change state from [Capture_DR/IR] to [Exit1_DR/IR]
-void atomic_state_trans_EX1_to_PAU( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); } // change state from [Exit1_DR/IR] to [Pause_DR/IR]
-void atomic_state_trans_EX1_to_UPD( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); } // change state from [Exit1_DR/IR] to [Update_DR/IR]
-void atomic_state_trans_PAU_to_PAU( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); } // change state from [Pause_DR/IR] to [Pause_DR/IR]
-void atomic_state_trans_PAU_to_EX2( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); } // change state from [Pause_DR/IR] to [Exit2_DR/IR]
-void atomic_state_trans_EX2_to_SDR( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); } // change state from [Exit2_DR] to [Shift_DR]
-void atomic_state_trans_EX2_to_UPD( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); } // change state from [Exit2_DR/IR] to [Update_DR/IR]
-void atomic_state_trans_UPD_to_SDS( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); } // change state from [Update_DR/IR] to [Select_DR_Scan]
-void atomic_state_trans_UPD_to_IDL( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); } // change state from [Update_DR/IR] to [Run_Test/Idle]
+void atomic_state_trans_IDL_to_SDS( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); }  // [Idle] to [Select_DR_Scan]
+void atomic_state_trans_SDS_to_CAP( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); }  // [Select_DR_Scan] to [Capture_DR]
+void atomic_state_trans_CAP_to_SDR( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); }  // [Capture_DR] to [Shift_DR]
+void atomic_state_trans_CAP_to_EX1( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); }  // [Capture_DR/IR] to [Exit1_DR/IR]
+void atomic_state_trans_EX1_to_PAU( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); }  // [Exit1_DR/IR] to [Pause_DR/IR]
+void atomic_state_trans_EX1_to_UPD( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); }  // [Exit1_DR/IR] to [Update_DR/IR]
+void atomic_state_trans_PAU_to_PAU( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); }  // [Pause_DR/IR] to [Pause_DR/IR]
+void atomic_state_trans_PAU_to_EX2( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); }  // [Pause_DR/IR] to [Exit2_DR/IR]
+void atomic_state_trans_EX2_to_SDR( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); }  // [Exit2_DR] to [Shift_DR]
+void atomic_state_trans_EX2_to_UPD( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); }  // [Exit2_DR/IR] to [Update_DR/IR]
+void atomic_state_trans_UPD_to_SDS( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); }  // [Update_DR/IR] to [Select_DR_Scan]
+void atomic_state_trans_UPD_to_IDL( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); }  // [Update_DR/IR] to [Idle]
 
 // Go to the IR scan and IR flow. The IR flow and DR flow are identical and the following functions are aliases to make
 // the meaning of the script clear.
-void atomic_state_trans_SDS_to_SIS( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); } // change state from [Select_DR_Scan] to [Select_IR_Scan]
-void atomic_state_trans_SIS_to_CAP( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); } // change state from [Select_IR_Scan] to [Capture_IR]
-void atomic_state_trans_CAP_to_SIR( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); } // change state from [Capture_IR] to [Shift_IR]
-void atomic_state_trans_EX2_to_SIR( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); } // change state from [Exit2_IR] to [Shift_IR]
+void atomic_state_trans_SDS_to_SIS( BYTE *buf, int &cnt){ append_TMS1_no_data( buf, cnt); }  // [Select_DR_Scan] to [Select_IR_Scan]
+void atomic_state_trans_SIS_to_CAP( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); }  // [Select_IR_Scan] to [Capture_IR]
+void atomic_state_trans_CAP_to_SIR( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); }  // [Capture_IR] to [Shift_IR]
+void atomic_state_trans_EX2_to_SIR( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); }  // [Exit2_IR] to [Shift_IR]
 
 
-// change state from [Shift_DR/IR] to [Shift_DR/IR], i.e. shift one bit
+ //[Shift_DR/IR] to [Shift_DR/IR], i.e. shift one bit
 void atomic_state_trans_SR_to_SR( BYTE *buf, int &cnt, BYTE bit_to_shift_in, bool to_read) {
     if(bit_to_shift_in == 0){
         if(!to_read){
@@ -121,7 +121,7 @@ void atomic_state_trans_SR_to_SR( BYTE *buf, int &cnt, BYTE bit_to_shift_in, boo
     }
 }
 
-// change state from [Shift_DR/IR] to [Exit1_DR/IR]
+ //[Shift_DR/IR] to [Exit1_DR/IR]
 void atomic_state_trans_SR_to_EX1( BYTE *buf, int &cnt, BYTE bit_to_shift_in, bool to_read){
     atomic_state_trans_SR_to_SR(buf, cnt, bit_to_shift_in, to_read);
     buf[cnt-2] = buf[cnt-2] | TMS;
