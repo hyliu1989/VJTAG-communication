@@ -33,7 +33,7 @@ end
 //Maintain the TDO Continuity
 always @ (*) begin
 	if (select_DR1)
-		tdo <= ~DR1[0];
+		tdo <= DR1[0];
     else 
 		tdo <= DR0_bypass_reg;	
 end		
