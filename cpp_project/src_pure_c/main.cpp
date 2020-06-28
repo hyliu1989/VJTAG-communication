@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "ftd2xx.h"
+#include "jtag_tap.h"
 
 // JTAG basic description
 /* ref: Virtual JTAG (sld_virtual_jtag) Megafunction User Guide, Altera
@@ -12,26 +13,7 @@
   (The TRST pin is not present in the Cyclone device family.)
 */
 
-// BitBanging description:
-/* ref: http://sourceforge.net/apps/mediawiki/urjtag/index.php?title=Cable_Altera_USB-Blaster
-For a byte called B to be transfer,
-1. Remember bit 6 (0x40) in B as the "Read bit".
-2. If bit 7 (0x80) is set, switch to Byte shift mode for the coming X bytes ( X := B & 0x3F ), and don't do anything else now.
-3. Otherwise, set the JTAG signals as follows:
-    1) TCK/DCLK high if bit 0 was set (0x01), otherwise low
-    2) TMS/nCONFIG high if bit 1 was set (0x02), otherwise low
-    3) nCE high if bit 2 was set (0x04), otherwise low
-    4) nCS high if bit 3 was set (0x08), otherwise low
-    5) TDI/ASDI/DATAO high if bit 4 was set (0x10), otherwise low
-    6) Output Enable/LED active if bit 5 was set (0x20), otherwise low
-4. If "Read bit" (0x40) was set, record the state of TDO(CONF_DONE) and DATAOUT/(nSTATUS) pins and
-   put them as a byte( (DATAOUT<<1)|TDO) in the output FIFO _to_ the host.
 
-    7        6        5        4        3        2        1        0
-   Bit             output
-  shift     read   enable     TDI      nCS      nCE      TMS      TCK
-   mode
-*/
 
 #define BASE  0x0C
 #define TCK   0x01
@@ -43,30 +25,6 @@ For a byte called B to be transfer,
 // === The utility functions ============================================================================
 static bool bStrEqualFirst(const char *s1, const char *s2, int imax);
 
-// naming: if both DR and IR have a similar transition, I just omit the D and I in the function name.
-static void buf_util_to_ByteShift( BYTE *buf, int &cnt, bool toRead, unsigned nbytes ); // the bit banging indicates changing to Byte shift mode
-static void buf_util_Simple_TMS_0( BYTE *buf, int &cnt, bool toRead );
-static void buf_util_Simple_TMS_1( BYTE *buf, int &cnt, bool toRead );
-static void buf_util_state_trans_SR_to_SR  ( BYTE *buf, int &cnt, BYTE bit_to_shift_in, bool toRead ); // change state from [Shift_DR/IR] to [Shift_DR/IR], i.e. shift one bit
-static void buf_util_state_trans_SR_to_EX1 ( BYTE *buf, int &cnt, BYTE bit_to_shift_in, bool toRead ); // change state from [Shift_DR/IR] to [Exit1_DR/IR]
-
-static void buf_util_state_trans_IDL_to_IDL( BYTE *buf, int &cnt, bool toRead ){ buf_util_Simple_TMS_0( buf, cnt, toRead ); } // change state from [Run_Test/Idle] to [Run_Test/Idle]
-static void buf_util_state_trans_IDL_to_SDS( BYTE *buf, int &cnt, bool toRead ){ buf_util_Simple_TMS_1( buf, cnt, toRead ); } // change state from [Run_Test/Idle] to [Select_DR_Scan]
-static void buf_util_state_trans_SDS_to_SIS( BYTE *buf, int &cnt, bool toRead ){ buf_util_Simple_TMS_1( buf, cnt, toRead ); } // change state from [Select_DR_Scan] to [Select_IR_Scan]
-static void buf_util_state_trans_SS_to_CAP( BYTE *buf, int &cnt, bool toRead ){  buf_util_Simple_TMS_0( buf, cnt, toRead ); } // change state from [Select_DR/IR_Scan] to [Capture_DR/IR]
-static void buf_util_state_trans_SIS_to_RST( BYTE *buf, int &cnt, bool toRead ){ buf_util_Simple_TMS_1( buf, cnt, toRead ); } // change state from [Select_IR_Scan] to [Test_Logic/Reset]
-static void buf_util_state_trans_CAP_to_SR( BYTE *buf, int &cnt, bool toRead ){  buf_util_Simple_TMS_0( buf, cnt, toRead ); } // change state from [Capture_DR/IR] to [Shift_DR/IR]
-static void buf_util_state_trans_CAP_to_EX1( BYTE *buf, int &cnt, bool toRead ){ buf_util_Simple_TMS_1( buf, cnt, toRead ); } // change state from [Capture_DR/IR] to [Exit1_DR/IR]
-static void buf_util_state_trans_EX1_to_PAU( BYTE *buf, int &cnt, bool toRead ){ buf_util_Simple_TMS_0( buf, cnt, toRead ); } // change state from [Exit1_DR/IR] to [Pause_DR/IR]
-static void buf_util_state_trans_EX1_to_UPD( BYTE *buf, int &cnt, bool toRead ){ buf_util_Simple_TMS_1( buf, cnt, toRead ); } // change state from [Exit1_DR/IR] to [Update_DR/IR]
-static void buf_util_state_trans_PAU_to_PAU( BYTE *buf, int &cnt, bool toRead ){ buf_util_Simple_TMS_0( buf, cnt, toRead ); } // change state from [Pause_DR/IR] to [Pause_DR/IR]
-static void buf_util_state_trans_PAU_to_EX2( BYTE *buf, int &cnt, bool toRead ){ buf_util_Simple_TMS_1( buf, cnt, toRead ); } // change state from [Pause_DR/IR] to [Exit2_DR/IR]
-static void buf_util_state_trans_EX2_to_SR( BYTE *buf, int &cnt, bool toRead ){  buf_util_Simple_TMS_0( buf, cnt, toRead ); } // change state from [Exit2_DR/IR] to [Shift_DR/IR]
-static void buf_util_state_trans_EX2_to_UPD( BYTE *buf, int &cnt, bool toRead ){ buf_util_Simple_TMS_1( buf, cnt, toRead ); } // change state from [Exit2_DR/IR] to [Update_DR/IR]
-static void buf_util_state_trans_UPD_to_SDS( BYTE *buf, int &cnt, bool toRead ){ buf_util_Simple_TMS_1( buf, cnt, toRead ); } // change state from [Update_DR/IR] to [Select_DR_Scan]
-static void buf_util_state_trans_UPD_to_IDL( BYTE *buf, int &cnt, bool toRead ){ buf_util_Simple_TMS_0( buf, cnt, toRead ); } // change state from [Update_DR/IR] to [Run_Test/Idle]
-static void buf_util_state_trans_RST_to_RST( BYTE *buf, int &cnt, bool toRead ){ buf_util_Simple_TMS_1( buf, cnt, toRead ); } // change state from [Test_Logic/Reset] to [Test_Logic/Reset]
-static void buf_util_state_trans_RST_to_IDL( BYTE *buf, int &cnt, bool toRead ){ buf_util_Simple_TMS_0( buf, cnt, toRead ); } // change state from [Test_Logic/Reset] to [Run_Test/Idle]
 
 
 // === The operation =======================================================
@@ -93,7 +51,7 @@ int main()
 	BYTE        sendBuf[65536];
 	BYTE        readBuf[65536];
 	int         cnt=0;
-	bool        toRead = false;
+	bool        to_read = false;
 
     // auto-selecting a device
     if (FT_CreateDeviceInfoList(&numDevs) == FT_OK) {
@@ -176,293 +134,244 @@ static bool bStrEqualFirst(const char *s1, const char *s2, int imax){
 	return true;
 }
 
-static void buf_util_to_ByteShift( BYTE *buf, int &cnt, bool toRead, unsigned nbytes ){
-	BYTE base = (SHIFT) | (toRead? READ:0) | (nbytes & 0x3F);
-	buf[cnt++] = base;
-}
-
-static void buf_util_Simple_TMS_0( BYTE *buf, int &cnt, bool toRead ){
-	BYTE base  = (BASE) & (~TMS) & (~TCK);
-	//buf[cnt++] = base | (toRead? READ:0);
-	//buf[cnt++] = base | (toRead? READ:0) | TCK ;
-	//buf[cnt++] = base | (toRead? READ:0);
-
-	buf[cnt++] = base | (toRead? READ:0);
-	buf[cnt++] = base | TCK ;
-	buf[cnt++] = base ;
-}
-
-static void buf_util_Simple_TMS_1( BYTE *buf, int &cnt, bool toRead ){
-	BYTE base  = (BASE | TMS) & (~TCK);
-	//buf[cnt++] = base | (toRead? READ:0);
-	//buf[cnt++] = base | (toRead? READ:0) | TCK ;
-	//buf[cnt++] = base | (toRead? READ:0);
-
-	buf[cnt++] = base | (toRead? READ:0);
-	buf[cnt++] = base | TCK ;
-	buf[cnt++] = base ;
-}
-
-// change state from [Shift_DR/IR] to [Shift_DR/IR], i.e. shift one bit
-static void buf_util_state_trans_SR_to_SR( BYTE *buf, int &cnt, BYTE bit_to_shift_in, bool toRead) {
-	buf_util_Simple_TMS_0( buf, cnt, toRead );
-	if(bit_to_shift_in != 0){
-		buf[cnt-3] = buf[cnt-3] | TDI;
-		buf[cnt-2] = buf[cnt-2] | TDI;
-		buf[cnt-1] = buf[cnt-1] | TDI;
-	}
-}
-
-// change state from [Shift_DR/IR] to [Exit1_DR/IR]
-static void buf_util_state_trans_SR_to_EX1( BYTE *buf, int &cnt, BYTE bit_to_shift_in, bool toRead ){
-	buf_util_Simple_TMS_1( buf, cnt, toRead );
-	if(bit_to_shift_in != 0){
-		buf[cnt-3] = buf[cnt-3] | TDI;
-		buf[cnt-2] = buf[cnt-2] | TDI;
-		buf[cnt-1] = buf[cnt-1] | TDI;
-	}
-}
-
-
-
 
 static void SendBufOperation_BitBangBasic( BYTE *sendBuf, int &cnt ){
-	bool toRead = false;
+	bool to_read = false;
 
 	// go to reset by TMS high and clock it 5 times
-	buf_util_state_trans_RST_to_RST(sendBuf, cnt, toRead);
-	buf_util_state_trans_RST_to_RST(sendBuf, cnt, toRead);
-	buf_util_state_trans_RST_to_RST(sendBuf, cnt, toRead);
-	buf_util_state_trans_RST_to_RST(sendBuf, cnt, toRead);
-	buf_util_state_trans_RST_to_RST(sendBuf, cnt, toRead);
-	buf_util_state_trans_RST_to_IDL(sendBuf, cnt, toRead);
+	atomic_state_trans_RST_to_RST(sendBuf, cnt);
+	atomic_state_trans_RST_to_RST(sendBuf, cnt);
+	atomic_state_trans_RST_to_RST(sendBuf, cnt);
+	atomic_state_trans_RST_to_RST(sendBuf, cnt);
+	atomic_state_trans_RST_to_RST(sendBuf, cnt);
+	atomic_state_trans_RST_to_IDL(sendBuf, cnt);
 
     // Hard state goes from IDL to shift IR
-	buf_util_state_trans_IDL_to_SDS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SDS_to_SIS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SS_to_CAP(sendBuf, cnt, toRead);
-	buf_util_state_trans_CAP_to_SR(sendBuf, cnt, toRead);
+	atomic_state_trans_IDL_to_SDS(sendBuf, cnt);
+	atomic_state_trans_SDS_to_SIS(sendBuf, cnt);
+	atomic_state_trans_SIS_to_CAP(sendBuf, cnt);
+	atomic_state_trans_CAP_to_SIR(sendBuf, cnt);
 
 	// shift_IR (USER_1) 0x00E
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_EX1(sendBuf, cnt, 0, toRead);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_EX1(sendBuf, cnt, 0, to_read);
 	// end shift IR
 
     // Hard state goes from Exit1 to Shift DR
-	buf_util_state_trans_EX1_to_UPD(sendBuf, cnt, toRead);
-	buf_util_state_trans_UPD_to_SDS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SS_to_CAP(sendBuf, cnt, toRead);
-	buf_util_state_trans_CAP_to_SR(sendBuf, cnt, toRead);
+	atomic_state_trans_EX1_to_UPD(sendBuf, cnt);
+	atomic_state_trans_UPD_to_SDS(sendBuf, cnt);
+	atomic_state_trans_SDS_to_CAP(sendBuf, cnt);
+	atomic_state_trans_CAP_to_SDR(sendBuf, cnt);
 
 	// shift_DR(ADDR + VIR)
 	// also the VIRTUAL_CAPTURE command
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_EX1(sendBuf, cnt, 0, toRead); // addr, 0: Hub
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_EX1(sendBuf, cnt, 0, to_read); // addr, 0: Hub
 	// end shift DR
 
     // Hard state goes from Exit1 to Shift DR
-	buf_util_state_trans_EX1_to_UPD(sendBuf, cnt, toRead);
-	buf_util_state_trans_UPD_to_SDS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SS_to_CAP(sendBuf, cnt, toRead);
-	buf_util_state_trans_CAP_to_SR(sendBuf, cnt, toRead);
+	atomic_state_trans_EX1_to_UPD(sendBuf, cnt);
+	atomic_state_trans_UPD_to_SDS(sendBuf, cnt);
+	atomic_state_trans_SDS_to_CAP(sendBuf, cnt);
+	atomic_state_trans_CAP_to_SDR(sendBuf, cnt);
 
 	// shift_DR(ADDR + VIR)
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_EX1(sendBuf, cnt, 1, toRead); // addr
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_EX1(sendBuf, cnt, 1, to_read); // addr
 	// end shift DR
 
     // Hard state goes from Exit1 to Shift IR
-	buf_util_state_trans_EX1_to_UPD(sendBuf, cnt, toRead);
-	buf_util_state_trans_UPD_to_SDS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SDS_to_SIS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SS_to_CAP(sendBuf, cnt, toRead);
-	buf_util_state_trans_CAP_to_SR(sendBuf, cnt, toRead);
+	atomic_state_trans_EX1_to_UPD(sendBuf, cnt);
+	atomic_state_trans_UPD_to_SDS(sendBuf, cnt);
+	atomic_state_trans_SDS_to_SIS(sendBuf, cnt);
+	atomic_state_trans_SIS_to_CAP(sendBuf, cnt);
+	atomic_state_trans_CAP_to_SIR(sendBuf, cnt);
 
 	// shift_IR (USER_0) 0x00C
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_EX1(sendBuf, cnt, 0, toRead);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_EX1(sendBuf, cnt, 0, to_read);
 	// end shift IR
 
     // Hard state goes from Exit1 to Shift DR
-	buf_util_state_trans_EX1_to_UPD(sendBuf, cnt, toRead);
-	buf_util_state_trans_UPD_to_SDS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SS_to_CAP(sendBuf, cnt, toRead);
-	buf_util_state_trans_CAP_to_SR(sendBuf, cnt, toRead);
+	atomic_state_trans_EX1_to_UPD(sendBuf, cnt);
+	atomic_state_trans_UPD_to_SDS(sendBuf, cnt);
+	atomic_state_trans_SDS_to_CAP(sendBuf, cnt);
+	atomic_state_trans_CAP_to_SDR(sendBuf, cnt);
 
 	// shift_DR (VDR value)
 	//   The data of this block would be read out in the application
-	//   due to the toRead=true in the next second block.
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_EX1(sendBuf, cnt, 1, toRead);
+	//   due to the to_read=true in the next second block.
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_EX1(sendBuf, cnt, 1, to_read);
 	// end shift DR
 
     // Hard state goes from Exit1 to Shift DR
-	buf_util_state_trans_EX1_to_UPD(sendBuf, cnt, toRead);
-	buf_util_state_trans_UPD_to_SDS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SS_to_CAP(sendBuf, cnt, toRead);
-	buf_util_state_trans_CAP_to_SR(sendBuf, cnt, toRead);
+	atomic_state_trans_EX1_to_UPD(sendBuf, cnt);
+	atomic_state_trans_UPD_to_SDS(sendBuf, cnt);
+	atomic_state_trans_SDS_to_CAP(sendBuf, cnt);
+	atomic_state_trans_CAP_to_SDR(sendBuf, cnt);
 
 	// shift_DR (VDR value)
 	//   also read the (V)DR value, which is what we sent in last operation.
-	toRead = true;
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);  // location 000
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);  // location 001
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);  // location 010
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);  // location 011
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);  // location 100
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);  // location 101
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);  // location 110
-	buf_util_state_trans_SR_to_EX1(sendBuf, cnt, 1, toRead); // location 111
-	toRead = false;
+	to_read = true;
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);  // location 000
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);  // location 001
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);  // location 010
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);  // location 011
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);  // location 100
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);  // location 101
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);  // location 110
+	atomic_state_trans_SR_to_EX1(sendBuf, cnt, 1, to_read); // location 111
+	to_read = false;
 	// end shift DR
 
 	// Hard state goes from Exit1 to Idle
-	buf_util_state_trans_EX1_to_UPD(sendBuf, cnt, toRead);
-	buf_util_state_trans_UPD_to_IDL(sendBuf, cnt, toRead);
+	atomic_state_trans_EX1_to_UPD(sendBuf, cnt);
+	atomic_state_trans_UPD_to_IDL(sendBuf, cnt);
 }
 
 static void SendBufOperation_ByteShiftBasic( BYTE *sendBuf, int &cnt ){
-	bool toRead = false;
+	bool to_read = false;
 
 	// go to reset by TMS high and clock it 5 times
-	buf_util_state_trans_RST_to_RST(sendBuf, cnt, toRead);
-	buf_util_state_trans_RST_to_RST(sendBuf, cnt, toRead);
-	buf_util_state_trans_RST_to_RST(sendBuf, cnt, toRead);
-	buf_util_state_trans_RST_to_RST(sendBuf, cnt, toRead);
-	buf_util_state_trans_RST_to_RST(sendBuf, cnt, toRead);
-	buf_util_state_trans_RST_to_IDL(sendBuf, cnt, toRead);
+	atomic_state_trans_RST_to_RST(sendBuf, cnt);
+	atomic_state_trans_RST_to_RST(sendBuf, cnt);
+	atomic_state_trans_RST_to_RST(sendBuf, cnt);
+	atomic_state_trans_RST_to_RST(sendBuf, cnt);
+	atomic_state_trans_RST_to_RST(sendBuf, cnt);
+	atomic_state_trans_RST_to_IDL(sendBuf, cnt);
 
     // Hard state goes from IDL to shift IR
-	buf_util_state_trans_IDL_to_SDS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SDS_to_SIS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SS_to_CAP(sendBuf, cnt, toRead);
-	buf_util_state_trans_CAP_to_SR(sendBuf, cnt, toRead);
+	atomic_state_trans_IDL_to_SDS(sendBuf, cnt);
+	atomic_state_trans_SDS_to_SIS(sendBuf, cnt);
+	atomic_state_trans_SIS_to_CAP(sendBuf, cnt);
+	atomic_state_trans_CAP_to_SIR(sendBuf, cnt);
 
 	// shift_IR (USER_1) 0x00E
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_EX1(sendBuf, cnt, 0, toRead);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_EX1(sendBuf, cnt, 0, to_read);
 	// end shift IR
 
     // Hard state goes from Exit1 to Shift DR
-	buf_util_state_trans_EX1_to_UPD(sendBuf, cnt, toRead);
-	buf_util_state_trans_UPD_to_SDS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SS_to_CAP(sendBuf, cnt, toRead);
-	buf_util_state_trans_CAP_to_SR(sendBuf, cnt, toRead);
+	atomic_state_trans_EX1_to_UPD(sendBuf, cnt);
+	atomic_state_trans_UPD_to_SDS(sendBuf, cnt);
+	atomic_state_trans_SDS_to_CAP(sendBuf, cnt);
+	atomic_state_trans_CAP_to_SDR(sendBuf, cnt);
 
 	// shift_DR(ADDR + VIR)
 	//   also the VIRTUAL_CAPTURE command
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_EX1(sendBuf, cnt, 0, toRead); // addr, 0: Hub
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_EX1(sendBuf, cnt, 0, to_read); // addr, 0: Hub
 	// end shift DR
 
     // Hard state goes from Exit1 to Shift DR
-	buf_util_state_trans_EX1_to_UPD(sendBuf, cnt, toRead);
-	buf_util_state_trans_UPD_to_SDS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SS_to_CAP(sendBuf, cnt, toRead);
-	buf_util_state_trans_CAP_to_SR(sendBuf, cnt, toRead);
+	atomic_state_trans_EX1_to_UPD(sendBuf, cnt);
+	atomic_state_trans_UPD_to_SDS(sendBuf, cnt);
+	atomic_state_trans_SDS_to_CAP(sendBuf, cnt);
+	atomic_state_trans_CAP_to_SDR(sendBuf, cnt);
 
 	// shift_DR(ADDR + VIR)
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_EX1(sendBuf, cnt, 1, toRead); // addr
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_EX1(sendBuf, cnt, 1, to_read); // addr
 	// end shift DR
 
     // Hard state goes from Exit1 to Shift IR
-	buf_util_state_trans_EX1_to_UPD(sendBuf, cnt, toRead);
-	buf_util_state_trans_UPD_to_SDS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SDS_to_SIS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SS_to_CAP(sendBuf, cnt, toRead);
-	buf_util_state_trans_CAP_to_SR(sendBuf, cnt, toRead);
+	atomic_state_trans_EX1_to_UPD(sendBuf, cnt);
+	atomic_state_trans_UPD_to_SDS(sendBuf, cnt);
+	atomic_state_trans_SDS_to_SIS(sendBuf, cnt);
+	atomic_state_trans_SIS_to_CAP(sendBuf, cnt);
+	atomic_state_trans_CAP_to_SIR(sendBuf, cnt);
 
 	// shift_IR (USER_0) 0x00C
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 1, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_SR(sendBuf, cnt, 0, toRead);
-	buf_util_state_trans_SR_to_EX1(sendBuf, cnt, 0, toRead);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 1, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_SR(sendBuf, cnt, 0, to_read);
+	atomic_state_trans_SR_to_EX1(sendBuf, cnt, 0, to_read);
 	// end shift IR
 
     // Hard state goes from Exit1 to Shift DR
-	buf_util_state_trans_EX1_to_UPD(sendBuf, cnt, toRead);
-	buf_util_state_trans_UPD_to_SDS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SS_to_CAP(sendBuf, cnt, toRead);
-	buf_util_state_trans_CAP_to_SR(sendBuf, cnt, toRead);
+	atomic_state_trans_EX1_to_UPD(sendBuf, cnt);
+	atomic_state_trans_UPD_to_SDS(sendBuf, cnt);
+	atomic_state_trans_SDS_to_CAP(sendBuf, cnt);
+	atomic_state_trans_CAP_to_SDR(sendBuf, cnt);
 
 	// shift_DR (VDR value)
 	//   in Byte Shift mode, to send 1000_1101, we first send 0001_1010,
 	//   then being back to Bit Banging mode, send the last bit with TMS
 	//	 flag in order to make state transfer.
-	buf_util_to_ByteShift( sendBuf, cnt, toRead, 1 );
+	intiate_ByteShift( sendBuf, cnt, to_read, 1 );
 	sendBuf[cnt++] = 0x1A;
-	buf_util_state_trans_SR_to_EX1(sendBuf, cnt, 1, toRead);
+	atomic_state_trans_SR_to_EX1(sendBuf, cnt, 1, to_read);
 	// end shift DR
 
     // Hard state goes from Exit1 to Shift DR
-	buf_util_state_trans_EX1_to_UPD(sendBuf, cnt, toRead);
-	buf_util_state_trans_UPD_to_SDS(sendBuf, cnt, toRead);
-	buf_util_state_trans_SS_to_CAP(sendBuf, cnt, toRead);
-	buf_util_state_trans_CAP_to_SR(sendBuf, cnt, toRead);
+	atomic_state_trans_EX1_to_UPD(sendBuf, cnt);
+	atomic_state_trans_UPD_to_SDS(sendBuf, cnt);
+	atomic_state_trans_SDS_to_CAP(sendBuf, cnt);
+	atomic_state_trans_CAP_to_SDR(sendBuf, cnt);
 
 	// shift_DR (VDR value)
-	//   (toRead = true) causes the reading of the (V)DR value, which is
+	//   (to_read = true) causes the reading of the (V)DR value, which is
 	//   what we sent in the last operation.
 	//   There is the same sending issue here.
-	toRead = true;
-	buf_util_to_ByteShift( sendBuf, cnt, toRead, 1 );
-	toRead = false;
+	to_read = true;
+	intiate_ByteShift( sendBuf, cnt, to_read, 1 );
+	to_read = false;
 	sendBuf[cnt++] = 0x08;
-	buf_util_state_trans_SR_to_EX1(sendBuf, cnt, 0, toRead);
+	atomic_state_trans_SR_to_EX1(sendBuf, cnt, 0, to_read);
 	// end shift DR
 
 	// Hard state goes from Exit1 to Idle
-	buf_util_state_trans_EX1_to_UPD(sendBuf, cnt, toRead);
-	buf_util_state_trans_UPD_to_IDL(sendBuf, cnt, toRead);
+	atomic_state_trans_EX1_to_UPD(sendBuf, cnt);
+	atomic_state_trans_UPD_to_IDL(sendBuf, cnt);
 }
 
 
