@@ -3,31 +3,13 @@
 #include "ftd2xx.h"
 #include "jtag_tap.h"
 
-// JTAG basic description
-/* ref: Virtual JTAG (sld_virtual_jtag) Megafunction User Guide, Altera
-― Test data in (TDI), used to shift data into the IR and DR shift register chains[captured at rising edge of TCK in shifting states]
-― Test data out (TDO), used to shift data out of the IR and DR shift register chains [change at falling edge of TCK in shifting states]
-― Test mode select (TMS), used as an input into the TAP controller
-― TCK, used as the clock source for the JTAG circuitry
-― TRST resets the TAP controller. This is an optional input pin defined by the 1149.1 standard.
-  (The TRST pin is not present in the Cyclone device family.)
-*/
-
-
-
-#define BASE  0x0C
-#define TCK   0x01
-#define TMS   0x02
-#define TDI   0x10
-#define READ  0x40
-#define SHIFT 0x80
 
 // === The utility functions ============================================================================
 static bool bStrEqualFirst(const char *s1, const char *s2, int imax);
 
 
 
-// === The operation =======================================================
+// === The main operation =======================================================
 static void SendBufOperation_BitBangBasic( BYTE *buf, int &cnt ); // The basic IO
 static void SendBufOperation_ByteShiftBasic( BYTE *buf, int &cnt ); // The modified version of the above, VDR shift is using byte shift
 
