@@ -27,7 +27,11 @@
 		<Linker>
 			<Add directory="./" />
 		</Linker>
+		<Unit filename="src_pure_c/device.cpp" />
+		<Unit filename="src_pure_c/device.h" />
 		<Unit filename="src_pure_c/ftd2xx.h" />
+		<Unit filename="src_pure_c/ir_dr_util.cpp" />
+		<Unit filename="src_pure_c/ir_dr_util.h" />
 		<Unit filename="src_pure_c/jtag_tap.cpp" />
 		<Unit filename="src_pure_c/jtag_tap.h" />
 		<Unit filename="src_pure_c/main.cpp" />
