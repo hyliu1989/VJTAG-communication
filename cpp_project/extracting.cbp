@@ -27,8 +27,10 @@
 		<Linker>
 			<Add directory="./" />
 		</Linker>
-		<Unit filename="src/ftd2xx.h" />
-		<Unit filename="src/main.cpp" />
+		<Unit filename="src_pure_c/ftd2xx.h" />
+		<Unit filename="src_pure_c/jtag_tap.cpp" />
+		<Unit filename="src_pure_c/jtag_tap.h" />
+		<Unit filename="src_pure_c/main.cpp" />
 		<Extensions />
 	</Project>
 </CodeBlocks_project_file>

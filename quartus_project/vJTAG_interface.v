@@ -26,14 +26,14 @@ always @ (posedge tck or posedge aclr) begin
 			DR1 <= {tdi, DR1[7:1]}; // Shifting in (and out) the data
 	end
 end
-			
 
-		
-		
+
+
+
 //Maintain the TDO Continuity
 always @ (*) begin
 	if (select_DR1)
-		tdo <= ~DR1[0];
+		tdo <= DR1[0];
     else 
 		tdo <= DR0_bypass_reg;	
 end		
