@@ -1,15 +1,28 @@
 # DE0-Nano communication with a PC through VJTAG and C++
 
-In this project, I demonstrate how to communicate with the Altera FPGA on DE0-Nano using the FTDX2 library. The FPGA side uses Virtual JTAG as a conduit to accept the data from the PC. The goal is to build a communication solution without applying SOPC of the FPGA and quartus_stp on the PC. This will make the FPGA more easier to be integrated with another app.
+In this project, I demonstrate how to communicate with the Altera FPGA on DE0-Nano using the FTDX2 library. The FPGA side uses Virtual JTAG as a conduit to accept the data from the PC. The goal is to build a communication solution without applying SOPC of the FPGA and quartus_stp on the PC. This will make the FPGA easier to be integrated with another app.
 
-I intend to provide two examples with different complexity of the Virtual JTAG.
-- One is for a simple communication; the PC-end does not handle the variation of VIR length, assuming the length is short. 
-- The second one (under construction) is a Virtual JTAG with longer VIR length so that the PC-end has to handle the case. 
+The Hello world example is a C++ project on the PC end. One can easily accommodate it to other language by using a wrapper around the C++ codes.
+
 
 # Hello world example which sends a byte to the FPGA
-First of all, you will need a DE0-Nano device and compile and burn the RTL project to the device.
+## Requirements:
+1. a DE0-Nano device
+1. Quartus version 14.1
+1. Codeblocks with MINGW compiler (you can try different C++ compilers but this one is tested and works)
 
-Next, in the cpp_project, you can find the main() function in main.cpp that sends data to and reads data from the FPGA. If you do not modify the VJTAG IP configuration in RTL, you can go to the next paragraph; otherwise, you have to manually put some information from compilation report, Blaster_Comm.map.rpt, to the configuration section in main.cpp:
+## Introduction
+This example uses a C++ program to communicate with the FPGA. The C++ has to handle the JTAG timing sequence such as sending 2 bytes with TCK-tag 0 and TCK-tag 1 to simulate the JTAG clocking. Fortunately, the user does not need to handle this detail as the project handles this for them. The sequence is explained in the [step guide](Example-step-guide). The user can change the data to send to the FPGA (most frequent usage) or change the VJTAG configuration (less frequent and requiring RTL change). Whenever the change has been made, the C++ program has to be recompiled. A more convenient Python project that does not require recompilation is still under construction. (See branch [reconstructure_python](https://github.com/hyliu1989/VJTAG-communication/tree/restructure_python).)
+
+The RTL project (quartus_project) contains a module vJTAG_interface (in vJTAG_interface.v) that performs basic communication on the FPGA end. It will update its output `data_from_pc` when the VJTAG write command is completed, and it will shift the bits in `data_sent_to_pc` out to the PC when the VJTAG read command is completed (the output data is a snapshot of `data_sent_to_pc` at the beginning of data shifting).
+- As you will learn later in the [following section](Example-step-guide) that we will issue `USER0` instruction and a set of dummy bits to the `USER0` DR. The snapshot happens at the "Virtual Capture DR" state, that is, the beginning of every time the user sends a set of the dummy bits.
+
+## Example step guide
+First of all, you will need to burn the RTL project to the DE0-Nano device. This project provides the compiled FPGA programming file, Blaster_Comm.sof, so that the user can skip compiling the RTL.
+
+Next, in the cpp_project, open it in the Codeblock and hit compile and run. If a missing "ftd2xx.dll" error shows up, simply copy that from C++ project root to bin/Release/ and run again. You should see the print out on the screen. What you actually ran was the main() function in main.cpp that sends data to and reads data from the FPGA. The rest of this subsection will detail what the C++ codes do.
+
+If you do not modify the VJTAG IP configuration in RTL, you can skip this paragraph; otherwise, you have to manually put some information from compilation report, Blaster_Comm.map.rpt, to the configuration section in main.cpp (in the following code block). You can find the necessary information by searching `; Virtual JTAG Settings` in Blaster_Comm.map.rpt.
 ```
 // === Configuration copied from RTL report Blaster_Comm.map.rpt ================
 const int VJTAG_INSTANCE_IR_WIDTH = 2;  // bits. The actual instruction register length for the VJTAG instance.
@@ -19,7 +32,6 @@ const int VJTAG_INSTANCE_IR_WIDTH = 2;  // bits. The actual instruction register
 const int VJTAG_INSTANCE_ADDR = 0x10;
 const int USER1_DR_LENGTH = 5;
 ```
-You can find the necessary information by searching `; Virtual JTAG Settings` in Blaster_Comm.map.rpt.
 
 Inside main(), the JTAG device is first opened. The byte buffer that contains the instructions to the JTAG device is prepared by SendBufOperation_BitBangBasic() where the complicated JTAG operations are handled and abstracted. The flow in SendBufOperation_BitBangBasic() is listed as follows:
 1. Synchronized the JTAG device to `IDLE` state
@@ -40,7 +52,7 @@ The ByteShift mode also works! It was previously considered not working in 2013 
 
 
 # JTAG basic description
-The main method of communication, Virtual JTAG, mimicks the JTAG structure and pins. Therefore, having basic understanding of what the signal pins and the state transition of JTAG tap controller will help understanding how Virtual JTAG works.
+The main method of communication, Virtual JTAG, mimics the JTAG structure and pins. Therefore, having basic understanding of what the signal pins and the state transition of JTAG tap controller will help understanding how Virtual JTAG works.
 - Test data in (TDI), used to shift data into the IR and DR shift register chains. JTAG chip captures it at rising edge of TCK in "shift" states.
 - Test data out (TDO), used to shift data out of the IR and DR shift register chains. JTAGs chip changes it at falling edge of TCK in "shift" states so that the next device in the chain can have a proper TDI at the rising edges.
 - Test mode select (TMS), used as an input into the TAP controller
