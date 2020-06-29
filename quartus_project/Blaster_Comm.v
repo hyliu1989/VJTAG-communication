@@ -78,7 +78,7 @@ wire [7:0]   list_of_tf;
 
 wire         vjtag_tck;
 wire         vjtag_tdi;
-wire         vjtag_irin;
+wire [1:0]   vjtag_irin;
 wire         vjtag_cdr;
 wire         vjtag_cir;
 wire         vjtag_e1dr;
@@ -144,10 +144,12 @@ vJTAG_interface jtag0(
 	.tdi(vjtag_tdi),
 	.aclr(),
 	.ir_in(vjtag_irin),
+	.v_cdr(vjtag_cdr),
 	.v_sdr(vjtag_sdr),
-	.udr(vjtag_udr),
+	.v_udr(vjtag_udr),
+	.data_sent_to_pc({SW,SW}),
 	
-	.data_regs(list_of_tf),
+	.data_from_pc(list_of_tf),
 	.tdo(vjtag_tdo)
 );
 
