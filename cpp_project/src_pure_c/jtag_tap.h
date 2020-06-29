@@ -50,7 +50,19 @@ void common_functions_ANY_to_RST_to_IDL(BYTE *buf, int &cnt);
 void common_functions_IDL_to_SIR_to_IDL(BYTE *buf, int &cnt, BYTE bits[], int length, bool to_read);
 void common_functions_IDL_to_SDR_to_IDL(BYTE *buf, int &cnt, BYTE bits[], int length, bool to_read);
 
-// Experimental Byte Shift operation
-void intiate_ByteShift(BYTE *buf, int &cnt, bool to_read, unsigned nbytes);
+// Byte Shift operation
+/*
+This function adds a functional byte to the buffer indicate the beginning of the ByteShift mode.
+
+Args:
+    buf: the byte buffer.
+    cnt: the index of the byte buffer where this function can start adding new bytes.
+    to_read: instructs if the operation will read the TDO's
+    nbytes: the number of bytes to be in the ByteShift mode. This initiating byte is not included in the count.
+
+Returns:
+    true if a functional byte is uccessfully added, false otherwise.
+*/
+bool initiate_ByteShift(BYTE *buf, int &cnt, bool to_read, unsigned nbytes);
 
 #endif

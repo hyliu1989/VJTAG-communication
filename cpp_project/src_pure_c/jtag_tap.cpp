@@ -25,6 +25,14 @@ For a byte called B to be transfer in bit banging mode, each of its bits has dif
   shift     read   enable     TDI      nCS      nCE      TMS      TCK
    mode
 
+ByteShift description:
+The ByteShift mode has to be used with BitBanging mode because the TMS is assumed to be the same through out the entire
+ByteShift operation. The TMS is the same as the last BitBanging instruction before entering the ByteShift mode. During
+the ByteShift operation, multiple bytes can be sent and each of the 8 bits in a byte represents a TDI. The LSB of a
+byte is sent first and the MSB last, before moving to the next byte. When sending a TDI, the TCK will be clocked by the
+ByteShift mode operation automatically (from TCK=0 to TCK=1 within sending a TDI). Therefore ByteShift mode is efficient
+and convenient if the user has a lot of data to send during the ir shift or dr shift.
+
 Ref [broken]: http://sourceforge.net/apps/mediawiki/urjtag/index.php?title=Cable_Altera_USB-Blaster (2012)
 Ref: https://forum.sparkfun.com/viewtopic.php?t=20181&start=15
 */
@@ -184,8 +192,11 @@ void common_functions_IDL_to_SDR_to_IDL(BYTE *buf, int &cnt, BYTE bits[], int le
 }
 
 
-// This bit banging indicates changing to Byte shift mode
-void intiate_ByteShift(BYTE *buf, int &cnt, bool to_read, unsigned nbytes){
+bool initiate_ByteShift(BYTE *buf, int &cnt, bool to_read, unsigned nbytes){
+    if(nbytes > 0x3F){
+        return false;
+    }
     BYTE base = (SHIFT) | (to_read? READ:0) | (nbytes & 0x3F);
     buf[cnt++] = base;
+    return true;
 }

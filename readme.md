@@ -8,6 +8,7 @@ I intend to provide two examples with different complexity of the Virtual JTAG.
 
 # Hello world example which sends a byte to the FPGA
 TODO
+Both ByteShift and BitBanging are working!
 
 # JTAG basic description
 The main method of communication, Virtual JTAG, mimicks the JTAG structure and pins. Therefore, having basic understanding of what the signal pins and the state transition of JTAG tap controller will help understanding how Virtual JTAG works.
