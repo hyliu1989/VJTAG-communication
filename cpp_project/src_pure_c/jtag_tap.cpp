@@ -2,13 +2,13 @@
 This file implement the the big-bang operation for the JTAG tap controller state transitions.
 
 BitBanging description:
-BitBanging basically means taking a byte and mapping its bits to 8 (or less) pins of a chip or assigned with special 
+BitBanging basically means taking a byte and mapping its bits to 8 (or less) pins of a chip or assigned with special
 functions. In the current case, bits 7 (MSB) and 6 are functional.
 
 For a byte called B to be transfer in bit banging mode, each of its bits has different meaning,
 1. Bit 6 (0x40) in B  the "Read bit".
 2. If bit 7 (0x80) is set, this byte does not make any change to the JTAG tap controller and simply mark the begining
-   of the Byte shift mode, with the first byte in such mode being the next byte. This byte additionally defines the 
+   of the Byte shift mode, with the first byte in such mode being the next byte. This byte additionally defines the
    number of bytes in the Byte shift mode to be (B & 0x3F).
 3. For other bits, they corresponds to the JTAG pin voltages as follows:
     1) TCK/DCLK high if bit 0 was set (0x01), otherwise low
@@ -96,7 +96,7 @@ void atomic_state_trans_CAP_to_SIR( BYTE *buf, int &cnt){ append_TMS0_no_data( b
 void atomic_state_trans_EX2_to_SIR( BYTE *buf, int &cnt){ append_TMS0_no_data( buf, cnt); }  // [Exit2_IR] to [Shift_IR]
 
 
- //[Shift_DR/IR] to [Shift_DR/IR], i.e. shift one bit
+//[Shift_DR/IR] to [Shift_DR/IR], i.e. shift one bit
 void atomic_state_trans_SR_to_SR( BYTE *buf, int &cnt, BYTE bit_to_shift_in, bool to_read) {
     if(bit_to_shift_in == 0){
         if(!to_read){
@@ -107,7 +107,6 @@ void atomic_state_trans_SR_to_SR( BYTE *buf, int &cnt, BYTE bit_to_shift_in, boo
             buf[cnt++] = RDM100;
             buf[cnt++] = RDM000 | TCK ;
         }
-        
     }
     else{
         if(!to_read){
@@ -121,11 +120,67 @@ void atomic_state_trans_SR_to_SR( BYTE *buf, int &cnt, BYTE bit_to_shift_in, boo
     }
 }
 
- //[Shift_DR/IR] to [Exit1_DR/IR]
+//[Shift_DR/IR] to [Exit1_DR/IR]
 void atomic_state_trans_SR_to_EX1( BYTE *buf, int &cnt, BYTE bit_to_shift_in, bool to_read){
     atomic_state_trans_SR_to_SR(buf, cnt, bit_to_shift_in, to_read);
     buf[cnt-2] = buf[cnt-2] | TMS;
     buf[cnt-1] = buf[cnt-1] | TMS;
+}
+
+
+// Common functions
+void common_functions_ANY_to_RST_to_IDL(BYTE *buf, int &cnt)
+{
+    // go to reset by TMS high and clock it 5 times
+    for(int i = 0; i < 5; ++i){
+        atomic_state_trans_RST_to_RST(buf, cnt);
+    }
+
+    atomic_state_trans_RST_to_IDL(buf, cnt);
+}
+
+static void common_functions_shift_data(BYTE *buf, int &cnt, BYTE bits[], int length, bool to_read, bool is_ir_shift)
+{
+    /*
+    The state transition to shift_IR and that to shift_DR are identical except one step. This function merges the two
+    and provide a handle `is_ir_shift` to distinguish the two shifts.
+
+    The following pairs of functions have the same functionality:
+    - atomic_state_trans_SIS_to_CAP / atomic_state_trans_SDS_to_CAP
+    - atomic_state_trans_CAP_to_SIR / atomic_state_trans_CAP_to_SDR
+    */
+
+    // Go from IDL to shift_IR (or shift_DR)
+    atomic_state_trans_IDL_to_SDS(buf, cnt);
+    if(is_ir_shift){
+        atomic_state_trans_SDS_to_SIS(buf, cnt);
+    }
+    atomic_state_trans_SIS_to_CAP(buf, cnt);
+
+    // Go to the shift IR state only if the length of bits is nonzero
+    if(length > 0){
+        atomic_state_trans_CAP_to_SIR(buf, cnt);
+        for(int i = 0; i < length-1; ++i)
+            atomic_state_trans_SR_to_SR(buf, cnt, bits[i], to_read);
+        atomic_state_trans_SR_to_EX1(buf, cnt, bits[length-1], to_read);
+    }
+    else{
+        atomic_state_trans_CAP_to_EX1(buf, cnt);
+    }
+
+    // Go back to IDL state
+    atomic_state_trans_EX1_to_UPD(buf, cnt);
+    atomic_state_trans_UPD_to_IDL(buf, cnt);
+}
+
+void common_functions_IDL_to_SIR_to_IDL(BYTE *buf, int &cnt, BYTE bits[], int length, bool to_read)
+{
+    return common_functions_shift_data(buf, cnt, bits, length, to_read, true);
+}
+
+void common_functions_IDL_to_SDR_to_IDL(BYTE *buf, int &cnt, BYTE bits[], int length, bool to_read)
+{
+    return common_functions_shift_data(buf, cnt, bits, length, to_read, false);
 }
 
 

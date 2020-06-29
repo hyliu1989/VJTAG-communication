@@ -45,6 +45,11 @@ void atomic_state_trans_CAP_to_SIR(BYTE *buf, int &cnt);  // change state from [
 void atomic_state_trans_EX2_to_SIR(BYTE *buf, int &cnt);  // change state from [Exit2_IR] to [Shift_IR]
 
 
+// Common functions
+void common_functions_ANY_to_RST_to_IDL(BYTE *buf, int &cnt);
+void common_functions_IDL_to_SIR_to_IDL(BYTE *buf, int &cnt, BYTE bits[], int length, bool to_read);
+void common_functions_IDL_to_SDR_to_IDL(BYTE *buf, int &cnt, BYTE bits[], int length, bool to_read);
+
 // Experimental Byte Shift operation
 void intiate_ByteShift(BYTE *buf, int &cnt, bool to_read, unsigned nbytes);
 
