@@ -11,6 +11,8 @@ quartus_project/*.sof
 quartus_project/*.done
 quartus_project/*.qws
 quartus_project/*.cdf
+quartus_project/*.cnxerr
+quartus_project/*_bb.v
 quartus_project/db
 quartus_project/greybox_tmp
 quartus_project/incremental_db
