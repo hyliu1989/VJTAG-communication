@@ -9,7 +9,19 @@ I intend to provide two examples with different complexity of the Virtual JTAG.
 # Hello world example which sends a byte to the FPGA
 First of all, you will need a DE0-Nano device and compile and burn the RTL project to the device.
 
-Next, in the cpp_project, you can find the main() function that sends data to and reads data from the FPGA. Inside main(), the JTAG device is first opened. The byte buffer that contains the instructions to the JTAG device is prepared by SendBufOperation_BitBangBasic() where the complicated JTAG operations are handled and abstracted. The flow in SendBufOperation_BitBangBasic() is listed as follows:
+Next, in the cpp_project, you can find the main() function in main.cpp that sends data to and reads data from the FPGA. If you do not modify the VJTAG IP configuration in RTL, you can go to the next paragraph; otherwise, you have to manually put some information from compilation report, Blaster_Comm.map.rpt, to the configuration section in main.cpp:
+```
+// === Configuration copied from RTL report Blaster_Comm.map.rpt ================
+const int VJTAG_INSTANCE_IR_WIDTH = 2;  // bits. The actual instruction register length for the VJTAG instance.
+// The address value here already considers the bit shifting which reserves bits for the VIR command width. In the most
+// common case, the VIR width is 4 which is the minimum required by VIR_CAPTURE command. Therefore addr 0x10 actually
+// corresponds to 1 after removing the 4 least significant zeros.
+const int VJTAG_INSTANCE_ADDR = 0x10;
+const int USER1_DR_LENGTH = 5;
+```
+You can find the necessary information by searching `; Virtual JTAG Settings` in Blaster_Comm.map.rpt.
+
+Inside main(), the JTAG device is first opened. The byte buffer that contains the instructions to the JTAG device is prepared by SendBufOperation_BitBangBasic() where the complicated JTAG operations are handled and abstracted. The flow in SendBufOperation_BitBangBasic() is listed as follows:
 1. Synchronized the JTAG device to `IDLE` state
 1. Update the IR to indicate that we will be sending data to the `USER1` DR. `USER1` DR holds the virtual instructions.
 1. Send the first virtual instruction: `VIR_CAPTURE`, required by VJTAG IP to let the IP know that the next virtual instruction should be captured.
