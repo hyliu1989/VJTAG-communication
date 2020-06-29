@@ -7,8 +7,25 @@ I intend to provide two examples with different complexity of the Virtual JTAG.
 - The second one (under construction) is a Virtual JTAG with longer VIR length so that the PC-end has to handle the case. 
 
 # Hello world example which sends a byte to the FPGA
-TODO
-Both ByteShift and BitBanging are working!
+First of all, you will need a DE0-Nano device and compile and burn the RTL project to the device.
+
+Next, in the cpp_project, you can find the main() function that sends data to and reads data from the FPGA. Inside main(), the JTAG device is first opened. The byte buffer that contains the instructions to the JTAG device is prepared by SendBufOperation_BitBangBasic() where the complicated JTAG operations are handled and abstracted. The flow in SendBufOperation_BitBangBasic() is listed as follows:
+1. Synchronized the JTAG device to `IDLE` state
+1. Update the IR to indicate that we will be sending data to the `USER1` DR. `USER1` DR holds the virtual instructions.
+1. Send the first virtual instruction: `VIR_CAPTURE`, required by VJTAG IP to let the IP know that the next virtual instruction should be captured.
+1. Send the second virtual instruction: `0b01`, defined by this project and means to send data from the PC to the FPGA. The data will be displayed on the LED pattern.
+1. Update the IR to indicate that we will be sending data to the `USER0` DR. `USER0` DR holds the data.
+1. Send the first set of 8-bit data
+1. Send the second set of 8-bit data. This overwritten the first set and the LED will display the second set. However, because we enable reading the `TDO` when sending the second set, we will see the first set to be shown on the PC screen (shown in the first row in the terminal).
+1. (Until now, we perform the write operation. The following will be the read operation)
+1. Update the IR to indicate that we will be sending data to the USER1 DR.
+1. Send the first virtual instruction: `VIR_CAPTURE`
+1. Send the second virtual instruction: `0b10`, defined by this project and means to read data from the PC to the FPGA. The data is defined as `{SW[3:0], SW[3:0]}` which repeats the 4-bit switch pattern on DE0-Nano.
+1. Update the IR to indicate that we will be sending data to the `USER0` DR.
+1. Send 8-bit data where the data content does not matter. We enable reading the `TDO` when sending the data and you will see the repeated switch pattern (shown in the second row in the terminal).
+
+The ByteShift mode also works! It was previously considered not working in 2013 when this project was spun off. The command `0b10` (read) part is not implemented in ByteShift mode and is left as a TODO.
+
 
 # JTAG basic description
 The main method of communication, Virtual JTAG, mimicks the JTAG structure and pins. Therefore, having basic understanding of what the signal pins and the state transition of JTAG tap controller will help understanding how Virtual JTAG works.

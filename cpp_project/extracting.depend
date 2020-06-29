@@ -73,18 +73,35 @@
 	<windows.h>
 	"WinTypes.h"
 
-1593320353 source:d:\dropbox\lifeboston\research\de0_nano_vjtag_communication\cpp_project\src_pure_c\main.cpp
+1593407428 source:d:\dropbox\lifeboston\research\de0_nano_vjtag_communication\cpp_project\src_pure_c\main.cpp
 	<stdlib.h>
+	<stdio.h>
+	<assert.h>
+	"ftd2xx.h"
+	"jtag_tap.h"
+	"device.h"
+	"ir_dr_util.h"
+
+1593394563 d:\dropbox\lifeboston\research\de0_nano_vjtag_communication\cpp_project\src_pure_c\ftd2xx.h
+	<windows.h>
+	"WinTypes.h"
+
+1593394564 d:\dropbox\lifeboston\research\de0_nano_vjtag_communication\cpp_project\src_pure_c\jtag_tap.h
+	"ftd2xx.h"
+
+1593394563 source:d:\dropbox\lifeboston\research\de0_nano_vjtag_communication\cpp_project\src_pure_c\jtag_tap.cpp
+
+1593394563 d:\dropbox\lifeboston\research\de0_nano_vjtag_communication\cpp_project\src_pure_c\device.h
+	"ftd2xx.h"
+
+1593394563 source:d:\dropbox\lifeboston\research\de0_nano_vjtag_communication\cpp_project\src_pure_c\device.cpp
 	<stdio.h>
 	"ftd2xx.h"
 	"jtag_tap.h"
 
-1593320353 d:\dropbox\lifeboston\research\de0_nano_vjtag_communication\cpp_project\src_pure_c\ftd2xx.h
-	<windows.h>
-	"WinTypes.h"
-
-1593320586 d:\dropbox\lifeboston\research\de0_nano_vjtag_communication\cpp_project\src_pure_c\jtag_tap.h
+1593408918 d:\dropbox\lifeboston\research\de0_nano_vjtag_communication\cpp_project\src_pure_c\ir_dr_util.h
 	"ftd2xx.h"
 
-1593320755 source:d:\dropbox\lifeboston\research\de0_nano_vjtag_communication\cpp_project\src_pure_c\jtag_tap.cpp
+1593407537 source:d:\dropbox\lifeboston\research\de0_nano_vjtag_communication\cpp_project\src_pure_c\ir_dr_util.cpp
+	"ir_dr_util.h"
 

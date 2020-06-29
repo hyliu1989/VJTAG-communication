@@ -181,8 +181,6 @@ static void SendBufOperation_BitBangBasic( BYTE *sendBuf, int &cnt ){
     common_functions_IDL_to_SIR_to_IDL(sendBuf, cnt, data, data_length, to_read);
     // Clock out the TDO to see what we read
     to_read = true;
-    for(int i = 0; i < 8; ++i)
-        data[i] = 0;
     common_functions_IDL_to_SDR_to_IDL(sendBuf, cnt, data, 8, to_read);  // the content of `data` does not matter.
     to_read = false;
 }
